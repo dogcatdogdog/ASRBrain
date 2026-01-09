@@ -2,114 +2,108 @@
 
 **Building the Auditory Cortex for Offline AI Agents**
 
-ASRBrain 是一个专为 **离线环境 (Air-gapped)** 设计的高性能语音识别引擎。它不仅仅是一个简单的语音转文字工具，而是为未来的本地化 AI Agent（智能体）打造的“听觉中枢”。
-
-本项目基于 OpenAI 的 Whisper 架构，经过 `faster-whisper` (CTranslate2) 的深度优化，结合自研的流式 VAD (语音活动检测) 策略，能够在 **纯 CPU 环境** 下实现高精度的实时流式语音识别。
+ASRBrain 是一个专为 **离线环境 (Air-gapped)** 设计的高性能语音识别引擎。它不仅是一个语音转文字工具，更是为本地化 AI Agent 打造的“听觉中枢”。
 
 ---
 
-## 🌟 核心价值 (Core Value)
+## 🧠 技术架构 (Technical Architecture)
 
-在构建本地化 AI 助手时，我们面临三大挑战：隐私泄露、云端延迟、算力瓶颈。ASRBrain 旨在解决这些问题：
+本项目采用 **Python Sidecar** 模式，核心技术栈如下：
 
-*   **🔒 绝对隐私**: 所有计算都在本地完成，无需上传任何音频数据至云端，确保敏感信息（会议记录、个人对话）的绝对安全。
-*   **⚡ 极致效能**: 通过 `int8` 量化与 C++ 推理引擎加速，在普通消费级 CPU 上即可流畅运行 `small` 甚至 `medium` 模型，无需昂贵的 GPU。
-*   **🌊 真实流式**: 内置基于能量检测的 VAD 算法与时间轴对齐逻辑，支持长音频的实时切片输出，而非死板的整段转写。
-*   **🇨🇳 中文调优**: 针对简繁体混杂问题进行了 Prompt 工程优化，确保输出纯正的简体中文。
-
----
-
-## 🏗️ 架构概览 (Architecture)
-
-```text
-[Input Source]      [Core Engine]                 [Output]
-(File / Mic)  --->  StreamProcessor (VAD)  --->  Callback/Console
-                          |                           |
-                    +------------+              +------------+
-                    | AsrService |              | JSONL File | (Time-stamped)
-                    +------------+              +------------+
-                          |                           |
-                    faster-whisper              [Summary Report]
-                    (Model int8)                (CSV Format)
-```
+*   **推理引擎**: `faster-whisper`
+    *   基于 [CTranslate2](https://github.com/OpenNMT/CTranslate2) (C++ 推理库)，比原始 OpenAI Whisper 快 4 倍，内存占用更少。
+    *   默认启用 **INT8 量化**，确保在普通 CPU 上也能实现接近实时的推理速度。
+*   **流式处理**: `StreamProcessor`
+    *   自研流式逻辑，采用 **滑动窗口 + VAD (语音活动检测)** 策略。
+    *   能够自动将连续音频流切分为独立句子，并保留精确的绝对时间戳。
+*   **工程规范**:
+    *   严格的 MVC 分层设计。
+    *   静态工具类封装 (`LogTool`, `ConfigTool`)，便于未来向 C++ 迁移。
 
 ---
 
-## 🚀 快速开始 (Quick Start)
+## 🚀 用户指南 (User Guide)
 
-### 1. 环境准备 (推荐 Conda)
+### 1. 环境安装 (Installation)
 
-本项目依赖 `torch` 和 `soundfile` 等库，使用 Conda 可以更方便地管理这些科学计算依赖。
+推荐使用 Conda 进行环境隔离：
 
 ```bash
-# 1. 克隆项目
+# 1. 克隆代码
 git clone https://github.com/dogcatdogdog/ASRBrain.git
 cd ASRBrain
 
-# 2. 创建并激活 Conda 环境
+# 2. 创建环境 (Python 3.10)
 conda create -n asr_brain python=3.10
 conda activate asr_brain
 
-# 3. 安装项目依赖
+# 3. 安装依赖
+# 包含 torch, faster-whisper, soundfile 等核心库
 pip install -r app/code/requirements.txt
 ```
 
-### 2. 模型准备
+### 2. 模型准备 (Model Setup)
 
-项目默认配置使用 Whisper `small` 模型（平衡精度与速度的最佳选择）。
-*   **自动模式**: 首次运行时，程序会自动从 HuggingFace 镜像下载模型至 `app/models/` 目录。
-*   **手动模式**: 若网络受限，请自行下载 `systran/faster-whisper-small` 模型文件并解压至 `app/models/`。
+无需手动下载！ASRBrain 具有**自动模型管理**功能。
 
-### 3. 使用命令行工具 (CLI)
+*   **自动下载**: 首次运行程序时，它会自动检测 `app/models/` 目录。如果模型不存在，会自动从 HuggingFace 镜像下载 `small` 模型（约 480MB）。
+*   **手动切换**: 如果您的机器配置较低，或者需要更高精度，请修改 `app/config/models.yaml`：
+    ```yaml
+    modelConfig:
+      # 可选: tiny, base, small, medium, large-v3
+      modelSize: "small" 
+      # 显式指定 INT8 量化以加速 CPU 推理
+      computeType: "int8"
+    ```
 
-#### 模式一：单文件流式识别 (Stream Mode)
-模拟实时流式输入，适合测试模型的实时响应能力。
+### 3. 数据准备 (Data Preparation)
+
+为了测试效果，您需要准备一些音频文件：
+*   **格式**: 推荐 `.wav` 格式。
+*   **采样率**: 16000Hz (最佳) 或 24000Hz+ (程序会自动读取，但 16k 最原生)。
+*   **存放位置**: 建议放入 `app/data/dataset/` 目录（需自行创建）。
+
+### 4. 运行测试 (Usage)
+
+#### 场景 A: 快速测试单个文件
+想看看某个录音识别准不准？使用单文件模式。
 
 ```bash
-# Windows 用户建议先执行此命令防止乱码
+# Windows 用户推荐命令 (防止控制台乱码)
 chcp 65001
 
-# 运行识别
-python app/code/main.py -i "data/test_audio.wav"
+# 运行命令 (-i 指定输入文件)
+python app/code/main.py -i "app/data/dataset/story.wav"
 ```
-*   **输出**: 控制台实时打印每一句识别结果，完整结果保存在 `app/out/session_xxx.jsonl`。
+*   **效果**: 屏幕上会像字幕一样逐句打印识别结果。
+*   **结果**: 完整的时间轴数据会保存到 `app/out/session_xxx.jsonl`。
 
-#### 模式二：批量数据集处理 (Batch Mode)
-适合大规模回归测试或批量转写存量录音文件。
+#### 场景 B: 批量回归测试
+想一次性测试 100 个文件？使用批量模式。
 
 ```bash
-python app/code/main.py --batch "data/my_dataset_folder"
+# 运行命令 (--batch 指定目录)
+python app/code/main.py --batch "app/data/dataset"
 ```
-*   **输出**: 自动生成 `app/out/batch_xxx/` 目录，包含汇总报表 (`summary.csv`) 和详情文件 (`details/*.jsonl`)。
+*   **效果**: 自动扫描目录下所有 wav 文件。
+*   **报告**: 在 `app/out/batch_xxx/` 下生成 `summary.csv` (汇总表) 和 `details/` (详细时间轴)。
 
 ---
 
-## 🛠️ 配置说明 (Configuration)
+## ⚠️ 当前局限 (Current Limitations)
 
-所有核心参数均可在 `app/config/models.yaml` 中动态调整，无需修改代码：
+**注意：本项目目前处于 Phase 1 中期。**
 
-```yaml
-modelConfig:
-  modelSize: "small"        # 可选: tiny, base, small, medium
-  device: "cpu"             # 可选: cpu, cuda
-  computeType: "int8"       # 启用量化加速
-
-asrParams:
-  initialPrompt: "..."      # 引导简繁体或特定语境
-  vadFilter: true           # 开启 VAD 过滤
-```
+1.  **仿真流式**: 目前通过读取文件模拟流式输入，**尚未接入真实麦克风**。无法对着电脑说话直接出字。
+2.  **延迟**: 采用“静音后识别”策略，长句需要说完才能上屏，缺乏即时的“中间结果”反馈。
 
 ---
 
-## 🗺️ 演进路线 (Roadmap)
+## 📅 近期计划 (Coming Soon)
 
-*   **Phase 1: Python Sidecar (当前阶段)**
-    *   [x] 核心 ASR 引擎 & VAD 切片
-    *   [x] CLI 命令行工具体系
-    *   [ ] **FastAPI 接口**: 提供 WebSocket 服务，供前端实时调用
-    *   [ ] **LLM 接入**: 将识别结果输入本地大模型进行摘要/对话
-*   **Phase 2: Native Evolution**
-    *   [ ] 迁移至 Rust/C++ 实现，进一步降低内存占用
+1.  **真实流式接入**: 开发 WebSocket 接口，对接前端麦克风实时流。
+2.  **Interim Results**: 实现“边说边出字”的实时反馈效果。
+3.  **Neural VAD**: 引入神经网络 VAD 替代能量检测，提升抗噪能力。
 
 ---
 
