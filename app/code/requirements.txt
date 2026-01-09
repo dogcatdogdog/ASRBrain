@@ -1,0 +1,19 @@
+# --- 核心 AI 引擎 ---
+# Faster-Whisper: 优化版的 Whisper 推理引擎 (CTranslate2)
+faster-whisper
+torch
+numpy
+
+# --- 音频处理 ---
+# 用于读取各种格式音频文件并按块处理
+soundfile
+
+# --- 后端服务 (API & WebSocket) ---
+fastapi
+uvicorn[standard]
+
+# --- 基础设施 (Utils) ---
+pyyaml
+
+# --- 构建与打包 (Build) ---
+pyinstaller

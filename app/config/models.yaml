@@ -1,0 +1,21 @@
+# 模型路径配置 (符合离线部署规范)
+modelConfig:
+  # 模型规模: tiny, base, small, medium, large-v3
+  modelSize: "small"
+  # 本地模型目录路径 (修改为项目内路径)
+  modelPath: "app/models"
+  # 运行设备: cuda, cpu
+  device: "cpu"
+  # 计算精度: float16, int8_float16, int8
+  computeType: "int8"
+
+# ASR 识别参数
+asrParams:
+  beamSize: 5
+  bestOf: 5
+  language: "zh"
+  # 是否开启 VAD 过滤非人声
+  vadFilter: true
+  vadMinSilenceDurationMs: 500
+  # 提示语: 用于引导模型输出风格（如强制简体），若不需要可留空
+  initialPrompt: ""

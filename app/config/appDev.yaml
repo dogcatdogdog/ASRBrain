@@ -1,0 +1,14 @@
+# 开发环境基础配置
+server:
+  port: 8000
+  env: "dev"
+
+# 测试用文件路径
+test:
+  audioFile: "app/data/simple/test.wav"
+  # 每次读取的块大小 (0.5秒)
+  chunkSize: 8000
+  # 触发识别的静音阈值 (RMS)
+  silenceThreshold: 0.005
+  # 连续多少个静音块触发识别
+  silenceCountTrigger: 3
